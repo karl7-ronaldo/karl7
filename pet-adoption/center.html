@@ -19,6 +19,7 @@
       <button data-sec="apply" type="button">📄 申请进度</button>
       <button data-sec="adopt" type="button">🏠 领养记录</button>
       <a href="list.html" style="margin-top:6px">🐾 去看看待领养的宠物</a>
+      <a href="shelter.html">📤 我要送养（发布宠物）</a>
     </aside>
 
     <div>
@@ -80,15 +81,16 @@
           '<div class="field"><label>姓名</label><input id="pName" value="' + esc(user.name) + '"></div>' +
           '<div class="field"><label>手机号</label><input id="pPhone" value="' + esc(user.phone) + '"></div>' +
           '<div class="field"><label>身份证号</label><input id="pIdCard" value="' + esc(user.idCard) + '"></div>' +
-          '<div class="field"><label>身份</label><input value="' + DICT.role[user.role] + '" disabled></div>' +
+          '<div class="field"><label>身份</label><input value="' + (user.role === '03' ? '管理员' : '用户（可领养 / 可送养）') + '" disabled></div>' +
           '<div class="field full"><label>联系地址</label><input id="pAddr" value="' + esc(user.address) + '"></div>' +
         '</div>' +
         '<div class="form-actions"><button class="btn btn-primary" id="btnSaveProfile" type="button">保存资料</button>' +
           '<a class="btn btn-line" href="login.html">切换账号</a></div>' +
       '</div>' +
       '<div class="card"><h3 style="font-size:16px;margin-bottom:10px">账号说明</h3>' +
-        '<p style="color:#5b6b7b;font-size:13.5px">领养人编号由系统按注册顺序自动生成（U＋6 位顺序码），身份证号用于领养身份核验，' +
-        '仅在管理员审核与家访时使用，请确保信息真实有效。</p></div>';
+        '<p style="color:#5b6b7b;font-size:13.5px">用户编号由系统按注册顺序自动生成（U＋6 位顺序码）。本系统采用单账号双身份设计：' +
+        '同一个账号既可以在宠物列表提交领养申请，也可以在送养工作台发布宠物，两个入口可随时切换；' +
+        '身份证号用于领养身份核验，仅在管理员审核与家访时使用。</p></div>';
 
     $('#btnSaveProfile').addEventListener('click', function () {
       var phone = $('#pPhone').value.trim();

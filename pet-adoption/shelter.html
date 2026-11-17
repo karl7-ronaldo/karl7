@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>送养端 · 暖爪宠物领养中心</title>
+  <title>送养工作台 · 暖爪宠物领养中心</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -17,7 +17,8 @@
       <button data-sec="publish" class="on" type="button">📝 发布送养信息</button>
       <button data-sec="manage" type="button">🐾 管理送养宠物</button>
       <button data-sec="apply" type="button">📨 查看领养申请者</button>
-      <a href="index.html" style="margin-top:6px">↩ 返回前台首页</a>
+      <a href="center.html" style="margin-top:6px">👤 我要领养 / 个人中心</a>
+      <a href="index.html">↩ 返回前台首页</a>
     </aside>
 
     <div>
@@ -36,7 +37,7 @@
 <script src="js/common.js"></script>
 <script>
   renderLayout('shelter');
-  var user = requireUser(['02', '03']);
+  var user = requireUser();
   var sec = 'publish';
 
   function myPets() {
@@ -92,7 +93,8 @@
           '<button class="btn btn-line" id="btnClear" type="button">清空重填</button>' +
         '</div>' +
         '<p style="color:#8b9aa8;font-size:12.5px;margin-top:12px">' +
-          '说明：提交后系统自动生成宠物编号（PET-年份-4位顺序码），状态为“待审核”，审核通过后才可被领养人申请。</p>' +
+          '说明：提交后系统自动生成宠物编号（PET-年份-4位顺序码），状态为“待审核”，审核通过后才可被其他用户申请。' +
+          '同一账号也保留领养人身份，可正常申请他人发布的宠物，但不能申请自己发布的宠物。</p>' +
       '</div>' +
       '<div class="card"><h3 style="font-size:16px;margin-bottom:8px">本次送养数据概览</h3>' +
         '<div class="stat-row" style="margin:0">' + statBoxes() + '</div></div>';
@@ -266,7 +268,7 @@
         '<b style="color:#1f2d3a">领养理由</b><div style="margin-top:4px">' + esc(a.reason) + '</div>' +
         (a.reviewNote ? '<div style="margin-top:8px"><b style="color:#1f2d3a">审核意见</b><div>' + esc(a.reviewNote) + '</div></div>' : '') +
       '</div>' +
-      '<p style="color:#8b9aa8;font-size:12.5px;margin-top:12px">送养端仅可查看申请者资料，审核与协议签订由管理员在后台完成。</p>',
+      '<p style="color:#8b9aa8;font-size:12.5px;margin-top:12px">送养工作台仅可查看申请者资料，审核与协议签订由管理员在后台完成。</p>',
       '<button class="btn btn-primary" type="button" onclick="closeModal()">关闭</button>');
   }
 

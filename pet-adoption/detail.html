@@ -30,13 +30,16 @@
   } else {
     document.title = pet.name + ' · 宠物详情';
     var fav = user ? DB.isFavorite(user.id, pet.id) : false;
+    var isMine = user && pet.createdBy === user.id;
     var myApp = user ? DB.applications().filter(function (a) {
       return a.petId === pet.id && a.userId === user.id && a.status !== '06';
     })[0] : null;
-    var canApply = pet.status === '20' && !myApp;
 
     var applyBtn = '';
-    if (myApp) {
+    if (isMine) {
+      applyBtn = '<button class="btn btn-line" type="button" disabled>这是你发布的宠物</button>' +
+        '<a class="btn btn-line" href="shelter.html">去送养工作台</a>';
+    } else if (myApp) {
       applyBtn = '<button class="btn btn-line" type="button" disabled>已提交申请（' + DICT.applyStatus[myApp.status] + '）</button>' +
         '<a class="btn btn-line" href="center.html">查看进度</a>';
     } else if (pet.status === '20') {
@@ -66,7 +69,7 @@
               (fav ? '★ 已收藏' : '☆ 收藏') + '</button>' +
             applyBtn +
           '</div>' +
-          '<div class="detail-id">档案编号 ' + esc(pet.id) + ' · 资料由救助站登记并经管理员审核</div>' +
+          '<div class="detail-id">档案编号 ' + esc(pet.id) + ' · 资料由送养用户登记并经管理员审核</div>' +
         '</div>' +
       '</div>' +
 
