@@ -2,7 +2,7 @@
  * 宠物领养管理系统 · 前端数据层（js/store.js）
  * 本系统为纯前端实现，业务数据统一保存在浏览器 localStorage 中，
  * 编码规则与实验报告 3.5 代码设计完全一致：
- *   宠物编号 PET-YYYY-NNNN   领养人 U000001   送养人 S001   管理员 A001
+ *   宠物编号 PET-YYYY-NNNN   用户 U000001（历史送养编号 S001 保留）   管理员 A001
  *   申请单号 AP+YYYYMMDD+NNN 协议编号 AD+YYYYMMDD+NNN+校验位
  *   回访单号 VS+YYYYMMDD+NN   公告编号 NC+YYYYMMDD+NN
  * ===================================================================== */
@@ -12,7 +12,7 @@ var SESSION_KEY = 'pet_adoption_session_v1';
 
 /* 状态码字典（对应报告表3-2） */
 var DICT = {
-  role:       { '01': '领养人', '02': '送养人', '03': '管理员' },
+  role:       { '01': '用户', '03': '管理员' },
   ptype:      { '01': '犬', '02': '猫', '03': '其他' },
   gender:     { 'M': '公', 'F': '母' },
   health:     { '01': '健康', '02': '观察中', '03': '治疗中', '04': '康复中' },
@@ -22,7 +22,7 @@ var DICT = {
   account:    { '01': '正常', '02': '已冻结' }
 };
 
-var ROLE = { ADOPTER: '01', STAFF: '02', ADMIN: '03' };
+var ROLE = { USER: '01', ADMIN: '03' };
 
 /* ---------------------- 编号生成模块 ---------------------- */
 function pad(n, len) {
@@ -70,9 +70,9 @@ var CodeGen = {
     return 'PET-' + y + '-' + this.nextSeq(pets, 'PET-' + y + '-', 4);
   },
 
-  /* 用户编号 U000001 / S001 / A001 */
+  /* 用户编号 U000001 / A001（历史送养编号 S001 保留，不再新发） */
   user: function (users, role) {
-    var map = { '01': ['U', 6], '02': ['S', 3], '03': ['A', 3] };
+    var map = { '01': ['U', 6], '03': ['A', 3] };
     var conf = map[role] || ['U', 6];
     return conf[0] + this.nextSeq(users, conf[0], conf[1]);
   },
@@ -116,7 +116,8 @@ function seedData() {
         address: '成都市武侯区人民南路四段 12 号', password: '123456', status: '01', createdAt: '2026-10-11' },
       { id: 'U000003', role: '01', name: '王雪', phone: '13800000003', idCard: '510104200001011234',
         address: '成都市锦江区春熙路 8 号', password: '123456', status: '02', createdAt: '2026-10-20' },
-      { id: 'S001', role: '02', name: '陈芳', phone: '13900000001', idCard: '', address: '暖爪宠物领养中心（天府店）',
+      /* 合并前遗留的送养账号：角色已并入普通用户 01，编号沿用 S001 */
+      { id: 'S001', role: '01', name: '陈芳', phone: '13900000001', idCard: '', address: '暖爪宠物领养中心（天府店）',
         password: '123456', status: '01', createdAt: '2026-08-01' },
       { id: 'A001', role: '03', name: '刘洋', phone: '13700000001', idCard: '', address: '暖爪宠物领养中心（总部）',
         password: '123456', status: '01', createdAt: '2026-08-01' }
@@ -235,6 +236,12 @@ var DB = {
       try { this.data = JSON.parse(raw); } catch (e) { this.data = null; }
     }
     if (!this.data) { this.data = seedData(); this.save(); }
+    /* 旧数据迁移：送养人（02）与原领养人合并为统一用户角色（01） */
+    var changed = false;
+    this.data.users.forEach(function (u) {
+      if (u.role === '02') { u.role = '01'; changed = true; }
+    });
+    if (changed) this.save();
     return this.data;
   },
 
@@ -284,10 +291,11 @@ var DB = {
     var exists = this.users().filter(function (u) { return u.phone === form.phone; });
     if (exists.length) return { ok: false, msg: '该手机号已注册，请直接登录' };
     if (!/^1\d{10}$/.test(form.phone)) return { ok: false, msg: '请输入 11 位手机号码' };
-    if (form.idCard && !/^\d{17}[\dXx]$/.test(form.idCard)) return { ok: false, msg: '身份证号格式不正确（18 位）' };
+    if (!/^\d{17}[\dXx]$/.test(form.idCard || '')) return { ok: false, msg: '请填写 18 位身份证号' };
+    /* 注册不再区分领养人 / 送养人，统一为用户角色，领养与送养能力由同一账号承载 */
     var user = {
-      id: CodeGen.user(this.users(), form.role),
-      role: form.role, name: form.name, phone: form.phone,
+      id: CodeGen.user(this.users(), '01'),
+      role: '01', name: form.name, phone: form.phone,
       idCard: form.idCard || '', address: form.address || '',
       password: form.password, status: '01',
       createdAt: new Date().toISOString().slice(0, 10)
@@ -386,6 +394,7 @@ var DB = {
   submitApplication: function (form, user) {
     var pet = this.pet(form.petId);
     if (!pet) return { ok: false, msg: '宠物信息不存在' };
+    if (pet.createdBy === user.id) return { ok: false, msg: '不能申请自己发布的宠物' };
     if (pet.status !== '20') return { ok: false, msg: '该宠物当前不可申请领养' };
     var dup = this.applications().some(function (a) {
       return a.petId === form.petId && a.userId === user.id && (a.status === '01' || a.status === '02' || a.status === '03');

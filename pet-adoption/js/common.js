@@ -83,8 +83,8 @@ function renderLayout(active) {
     { key: 'notice', text: '公告资讯', href: 'index.html#notices' },
     { key: 'center', text: '个人中心', href: 'center.html' }
   ];
-  if (user && (user.role === '02' || user.role === '03')) {
-    nav.push({ key: 'shelter', text: '送养端', href: 'shelter.html' });
+  if (user) {
+    nav.push({ key: 'shelter', text: '送养工作台', href: 'shelter.html' });
   }
   if (user && user.role === '03') {
     nav.push({ key: 'admin', text: '管理后台', href: 'admin.html' });
