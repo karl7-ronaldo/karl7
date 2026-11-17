@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>宠物领养 · 暖爪宠物领养中心</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<section class="page-hd">
+  <div class="wrap">
+    <div class="crumb"><a href="index.html">首页</a> / 宠物领养</div>
+    <h1>宠物领养</h1>
+    <p>全部宠物档案统一编号管理，可按类别、性别、健康状况与关键词快速筛选</p>
+  </div>
+</section>
+
+<div class="wrap layout">
+  <aside class="side-card">
+    <div class="filter-group">
+      <label>宠物类别</label>
+      <div class="chips" data-key="type">
+        <span class="chip on" data-val="">全部</span>
+        <span class="chip" data-val="01">犬</span>
+        <span class="chip" data-val="02">猫</span>
+        <span class="chip" data-val="03">其他</span>
+      </div>
+    </div>
+    <div class="filter-group">
+      <label>性别</label>
+      <div class="chips" data-key="gender">
+        <span class="chip on" data-val="">全部</span>
+        <span class="chip" data-val="M">公</span>
+        <span class="chip" data-val="F">母</span>
+      </div>
+    </div>
+    <div class="filter-group">
+      <label>健康状态</label>
+      <div class="chips" data-key="health">
+        <span class="chip on" data-val="">全部</span>
+        <span class="chip" data-val="01">健康</span>
+        <span class="chip" data-val="02">观察中</span>
+        <span class="chip" data-val="03">治疗中</span>
+        <span class="chip" data-val="04">康复中</span>
+      </div>
+    </div>
+    <div class="filter-group">
+      <label>关键字</label>
+      <div class="field">
+        <input type="text" id="kwInput" placeholder="名称 / 品种 / 编号">
+      </div>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button class="btn btn-primary btn-sm" id="btnSearch" type="button">搜索</button>
+        <button class="btn btn-line btn-sm" id="btnReset" type="button">重置</button>
+      </div>
+    </div>
+  </aside>
+
+  <div>
+    <div class="list-bar">
+      <div class="count">共找到 <b id="count">0</b> 只符合条件的宠物</div>
+      <select id="sortSel">
+        <option value="new">最新登记优先</option>
+        <option value="ageAsc">年龄从小到大</option>
+        <option value="ageDesc">年龄从大到小</option>
+      </select>
+    </div>
+    <div class="pet-grid list" id="grid"></div>
+  </div>
+</div>
+
+<script src="js/store.js"></script>
+<script src="js/common.js"></script>
+<script>
+  renderLayout('list');
+
+  var params = new URLSearchParams(location.search);
+  var state = {
+    type: params.get('type') || '',
+    gender: params.get('gender') || '',
+    health: params.get('health') || '',
+    kw: params.get('kw') || '',
+    sort: 'new'
+  };
+  $('#kwInput').value = state.kw;
+
+  /* 初始化筛选按钮选中态 */
+  $$('.chips').forEach(function (group) {
+    var key = group.dataset.key;
+    $$('.chip', group).forEach(function (chip) {
+      if (chip.dataset.val === state[key]) chip.classList.add('on');
+      else chip.classList.remove('on');
+    });
+  });
+
+  function render() {
+    var list = DB.pets().filter(function (p) {
+      if (['20', '30', '40'].indexOf(p.status) < 0) return false;
+      if (state.type && p.type !== state.type) return false;
+      if (state.gender && p.gender !== state.gender) return false;
+      if (state.health && p.health !== state.health) return false;
+      if (state.kw) {
+        var k = state.kw.toLowerCase();
+        var text = (p.name + ' ' + p.breed + ' ' + p.id + ' ' + (p.desc || '')).toLowerCase();
+        if (text.indexOf(k) < 0) return false;
+      }
+      return true;
+    });
+
+    if (state.sort === 'ageAsc') list.sort(function (a, b) { return a.age - b.age; });
+    else if (state.sort === 'ageDesc') list.sort(function (a, b) { return b.age - a.age; });
+    else list.sort(function (a, b) { return a.createdAt < b.createdAt ? 1 : -1; });
+
+    $('#count').textContent = list.length;
+    $('#grid').innerHTML = list.length ? list.map(petCard).join('') : emptyState('没有找到符合条件的宠物，换个条件试试');
+  }
+
+  $$('.chips').forEach(function (group) {
+    group.addEventListener('click', function (e) {
+      var chip = e.target.closest('.chip');
+      if (!chip) return;
+      state[group.dataset.key] = chip.dataset.val;
+      $$('.chip', group).forEach(function (c) { c.classList.remove('on'); });
+      chip.classList.add('on');
+      render();
+    });
+  });
+
+  $('#btnSearch').addEventListener('click', function () {
+    state.kw = $('#kwInput').value.trim();
+    render();
+  });
+  $('#kwInput').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { state.kw = this.value.trim(); render(); }
+  });
+  $('#btnReset').addEventListener('click', function () {
+    state = { type: '', gender: '', health: '', kw: '', sort: 'new' };
+    $('#kwInput').value = '';
+    $('#sortSel').value = 'new';
+    $$('.chips').forEach(function (group) {
+      $$('.chip', group).forEach(function (c) { c.classList.toggle('on', c.dataset.val === ''); });
+    });
+    render();
+  });
+  $('#sortSel').addEventListener('change', function () { state.sort = this.value; render(); });
+
+  render();
+</script>
+</body>
+</html>

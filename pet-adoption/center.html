@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>个人中心 · 暖爪宠物领养中心</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="wrap">
+  <div class="panel-layout">
+    <aside class="menu">
+      <div class="who">
+        <b id="whoName">—</b>
+        <span id="whoMeta">—</span>
+      </div>
+      <button data-sec="profile" class="on" type="button">👤 我的资料</button>
+      <button data-sec="fav" type="button">⭐ 我的收藏</button>
+      <button data-sec="apply" type="button">📄 申请进度</button>
+      <button data-sec="adopt" type="button">🏠 领养记录</button>
+      <a href="list.html" style="margin-top:6px">🐾 去看看待领养的宠物</a>
+    </aside>
+
+    <div>
+      <div class="panel-title">
+        <div>
+          <h2 id="panelTitle">我的资料</h2>
+          <div class="sub" id="panelSub">完善资料有助于加快领养审核</div>
+        </div>
+      </div>
+      <div id="panel"></div>
+    </div>
+  </div>
+</div>
+
+<script src="js/store.js"></script>
+<script src="js/common.js"></script>
+<script>
+  renderLayout('center');
+  var user = requireUser();
+
+  var sec = new URLSearchParams(location.search).get('sec') || 'profile';
+  var TITLES = {
+    profile: ['我的资料', '完善资料有助于加快领养审核'],
+    fav: ['我的收藏', '收藏的宠物如已领养，将在列表中标注状态'],
+    apply: ['申请进度', '申请状态由管理员审核后实时更新'],
+    adopt: ['领养记录', '领养成功后的协议编号与回访记录']
+  };
+
+  function boot() {
+    user = DB.currentUser();
+    if (!user) return;
+    $('#whoName').textContent = user.name;
+    $('#whoMeta').textContent = DICT.role[user.role] + ' · ' + user.id;
+    var t = TITLES[sec] || TITLES.profile;
+    $('#panelTitle').textContent = t[0];
+    $('#panelSub').textContent = t[1];
+    $$('.menu [data-sec]').forEach(function (b) { b.classList.toggle('on', b.dataset.sec === sec); });
+    renderPanel();
+  }
+
+  function renderPanel() {
+    if (sec === 'profile') return renderProfile();
+    if (sec === 'fav') return renderFav();
+    if (sec === 'apply') return renderApply();
+    if (sec === 'adopt') return renderAdopt();
+  }
+
+  /* ---------- 我的资料 ---------- */
+  function renderProfile() {
+    $('#panel').innerHTML =
+      '<div class="card">' +
+        '<div style="display:flex;align-items:center;gap:14px;margin-bottom:18px">' +
+          '<div class="avatar" style="width:52px;height:52px;font-size:20px">' + esc(user.name.charAt(0)) + '</div>' +
+          '<div><b style="font-size:16px">' + esc(user.name) + '</b>' +
+          '<div style="color:#8b9aa8;font-size:12.5px">编号 ' + esc(user.id) + ' · 注册于 ' + esc(user.createdAt) + '</div></div>' +
+          '<div style="margin-left:auto">' + badge(DICT.account, user.status) + '</div>' +
+        '</div>' +
+        '<div class="form-grid">' +
+          '<div class="field"><label>姓名</label><input id="pName" value="' + esc(user.name) + '"></div>' +
+          '<div class="field"><label>手机号</label><input id="pPhone" value="' + esc(user.phone) + '"></div>' +
+          '<div class="field"><label>身份证号</label><input id="pIdCard" value="' + esc(user.idCard) + '"></div>' +
+          '<div class="field"><label>身份</label><input value="' + DICT.role[user.role] + '" disabled></div>' +
+          '<div class="field full"><label>联系地址</label><input id="pAddr" value="' + esc(user.address) + '"></div>' +
+        '</div>' +
+        '<div class="form-actions"><button class="btn btn-primary" id="btnSaveProfile" type="button">保存资料</button>' +
+          '<a class="btn btn-line" href="login.html">切换账号</a></div>' +
+      '</div>' +
+      '<div class="card"><h3 style="font-size:16px;margin-bottom:10px">账号说明</h3>' +
+        '<p style="color:#5b6b7b;font-size:13.5px">领养人编号由系统按注册顺序自动生成（U＋6 位顺序码），身份证号用于领养身份核验，' +
+        '仅在管理员审核与家访时使用，请确保信息真实有效。</p></div>';
+
+    $('#btnSaveProfile').addEventListener('click', function () {
+      var phone = $('#pPhone').value.trim();
+      var idCard = $('#pIdCard').value.trim();
+      if (!/^1\d{10}$/.test(phone)) return toast('请输入 11 位手机号码', 'warn');
+      if (idCard && !/^\d{17}[\dXx]$/.test(idCard)) return toast('身份证号格式不正确', 'warn');
+      DB.updateUser(user.id, {
+        name: $('#pName').value.trim() || user.name,
+        phone: phone, idCard: idCard, address: $('#pAddr').value.trim()
+      });
+      toast('资料已保存');
+      boot();
+    });
+  }
+
+  /* ---------- 我的收藏 ---------- */
+  function renderFav() {
+    var list = DB.favoritesOf(user.id);
+    if (!list.length) {
+      $('#panel').innerHTML = emptyState('还没有收藏任何宠物，去列表逛逛吧');
+      return;
+    }
+    $('#panel').innerHTML = '<div class="pet-grid" style="grid-template-columns:repeat(3,1fr)">' +
+      list.map(function (p) {
+        return '<div style="position:relative">' + petCard(p) +
+          '<button class="btn btn-line btn-sm" data-unfav="' + p.id + '" type="button" ' +
+          'style="position:absolute;right:10px;bottom:52px;background:#fff">取消收藏</button></div>';
+      }).join('') + '</div>';
+
+    $$('[data-unfav]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        DB.toggleFavorite(user.id, btn.dataset.unfav);
+        toast('已取消收藏');
+        renderFav();
+      });
+    });
+  }
+
+  /* ---------- 申请进度 ---------- */
+  function renderApply() {
+    var apps = DB.applicationsOf(user.id);
+    if (!apps.length) {
+      $('#panel').innerHTML = emptyState('暂无领养申请，选择一只宠物开始申请吧');
+      return;
+    }
+    var stepIdx = { '01': 0, '02': 1, '03': 2, '04': 3, '05': 1, '06': 0 };
+    var steps = ['提交申请', '材料审核', '家访核实', '领养成功'];
+
+    $('#panel').innerHTML = apps.map(function (a) {
+      var pet = DB.pet(a.petId) || { name: '—', id: a.petId, photo: '' };
+      var idx = stepIdx[a.status] || 0;
+      var stepsHtml = steps.map(function (s, i) {
+        return '<div class="step ' + (i <= idx && a.status !== '05' && a.status !== '06' ? 'done' : '') + '">' +
+          '<i>' + (i + 1) + '</i>' + s + '</div>' +
+          (i < 3 ? '<div class="step-line ' + (i < idx && a.status !== '05' && a.status !== '06' ? 'done' : '') + '"></div>' : '');
+      }).join('');
+
+      return '<div class="card" style="display:grid;grid-template-columns:120px 1fr;gap:18px">' +
+        '<div class="pet-thumb" style="border-radius:10px;width:120px;height:90px;overflow:hidden">' +
+          '<img src="' + pet.photo + '" alt="" style="width:100%;height:100%;object-fit:cover" onerror="imgFallback(this)"></div>' +
+        '<div>' +
+          '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">' +
+            '<b style="font-size:16px">' + esc(pet.name) + '</b>' + badge(DICT.applyStatus, a.status) +
+            '<span class="mono" style="color:#8b9aa8">' + esc(a.id) + '</span>' +
+          '</div>' +
+          '<div style="color:#5b6b7b;font-size:13.5px;margin-top:6px">申请时间：' + esc(a.createdAt) +
+            ' · 宠物编号 ' + esc(a.petId) + '</div>' +
+          '<div class="steps">' + stepsHtml + '</div>' +
+          '<div style="background:#f8fbf9;border-radius:10px;padding:10px 12px;margin-top:6px;font-size:13px;color:#5b6b7b">' +
+            '<div>领养理由：' + esc(a.reason) + '</div>' +
+            (a.reviewNote ? '<div style="margin-top:4px">审核意见：' + esc(a.reviewNote) + '</div>' : '') +
+          '</div>' +
+          '<div style="margin-top:10px;display:flex;gap:8px">' +
+            '<a class="btn btn-line btn-sm" href="detail.html?id=' + encodeURIComponent(a.petId) + '">查看宠物</a>' +
+            (a.status === '01' ? '<button class="btn btn-danger btn-sm" data-withdraw="' + a.id + '" type="button">撤回申请</button>' : '') +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+
+    $$('[data-withdraw]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        if (!confirm('确定撤回该领养申请吗？')) return;
+        var res = DB.withdrawApplication(btn.dataset.withdraw);
+        if (!res.ok) return toast(res.msg, 'warn');
+        toast('已撤回申请');
+        renderApply();
+      });
+    });
+  }
+
+  /* ---------- 领养记录 + 回访 ---------- */
+  function renderAdopt() {
+    var apps = DB.applicationsOf(user.id).filter(function (a) { return a.status === '04'; });
+    if (!apps.length) {
+      $('#panel').innerHTML = emptyState('还没有领养成功的记录');
+      return;
+    }
+    $('#panel').innerHTML = apps.map(function (a) {
+      var pet = DB.pet(a.petId) || { name: '—', photo: '' };
+      var visits = DB.visits().filter(function (v) { return v.applicationId === a.id; });
+      return '<div class="card">' +
+        '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">' +
+          '<b style="font-size:17px">' + esc(pet.name) + '</b>' + badge(DICT.applyStatus, a.status) +
+          '<span class="mono" style="margin-left:auto">协议编号：' + esc(a.agreementId || '—') + '</span>' +
+        '</div>' +
+        '<div style="color:#5b6b7b;font-size:13.5px;margin-top:6px">' +
+          '宠物编号 ' + esc(a.petId) + ' · 申请单号 ' + esc(a.id) + ' · 完成时间 ' + esc(a.updatedAt) + '</div>' +
+        '<div style="margin-top:14px;font-weight:700;font-size:14px">回访记录</div>' +
+        (visits.length ? '<div class="table-wrap" style="margin-top:8px"><table class="tb"><thead><tr>' +
+          '<th>回访单号</th><th>计划日期</th><th>实际日期</th><th>结果</th><th>回访说明</th></tr></thead><tbody>' +
+          visits.map(function (v) {
+            return '<tr><td class="mono">' + esc(v.id) + '</td><td>' + esc(v.planDate) + '</td>' +
+              '<td>' + esc(v.actualDate || '—') + '</td><td>' + badge(DICT.visitStatus, v.status) + '</td>' +
+              '<td>' + esc(v.note || '—') + '</td></tr>';
+          }).join('') + '</tbody></table></div>'
+          : '<div style="color:#8b9aa8;font-size:13px;margin-top:6px">暂无回访记录</div>') +
+      '</div>';
+    }).join('');
+  }
+
+  $$('.menu [data-sec]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      sec = btn.dataset.sec;
+      history.replaceState(null, '', 'center.html?sec=' + sec);
+      boot();
+    });
+  });
+
+  boot();
+</script>
+</body>
+</html>

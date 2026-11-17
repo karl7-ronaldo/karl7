@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>管理员后台 · 暖爪宠物领养中心</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="wrap">
+  <div class="panel-layout">
+    <aside class="menu">
+      <div class="who">
+        <b id="whoName">—</b>
+        <span id="whoMeta">—</span>
+      </div>
+      <button data-sec="home" class="on" type="button">📊 后台概览</button>
+      <button data-sec="users" type="button">👥 用户管理</button>
+      <button data-sec="pets" type="button">🐾 宠物审核管理</button>
+      <button data-sec="apps" type="button">📄 领养申请审核</button>
+      <button data-sec="visits" type="button">📞 领养回访管理</button>
+      <button data-sec="notices" type="button">📢 公告资讯管理</button>
+      <button data-sec="settings" type="button">⚙️ 系统基础设置</button>
+      <a href="index.html" style="margin-top:6px">↩ 返回前台首页</a>
+    </aside>
+
+    <div>
+      <div class="panel-title">
+        <div>
+          <h2 id="panelTitle">后台概览</h2>
+          <div class="sub" id="panelSub">—</div>
+        </div>
+        <div id="panelExtra"></div>
+      </div>
+      <div id="panel"></div>
+    </div>
+  </div>
+</div>
+
+<script src="js/store.js"></script>
+<script src="js/common.js"></script>
+<script>
+  renderLayout('admin');
+  var user = requireUser(['03']);
+  var sec = 'home';
+
+  var META = {
+    home: ['后台概览', '查看关键数据与待处理事项'],
+    users: ['用户管理', '管理领养人、送养人与管理员账号状态'],
+    pets: ['宠物审核管理', '审核送养信息，维护宠物档案状态'],
+    apps: ['领养申请审核', '按“材料审核—家访核实—签订协议”流程处理申请'],
+    visits: ['领养回访管理', '跟踪领养后回访任务，记录回访结果'],
+    notices: ['公告资讯管理', '发布、编辑与删除领养须知与公益活动公告'],
+    settings: ['系统基础设置', '维护站点信息、领养要求与回访规则']
+  };
+
+  function boot() {
+    var u = DB.currentUser();
+    $('#whoName').textContent = u.name;
+    $('#whoMeta').textContent = '管理员 · ' + u.id;
+    $('#panelTitle').textContent = META[sec][0];
+    $('#panelSub').textContent = META[sec][1];
+    $$('.menu [data-sec]').forEach(function (b) { b.classList.toggle('on', b.dataset.sec === sec); });
+    $('#panelExtra').innerHTML = '';
+    if (sec === 'home') renderHome();
+    else if (sec === 'users') renderUsers();
+    else if (sec === 'pets') renderPets();
+    else if (sec === 'apps') renderApps();
+    else if (sec === 'visits') renderVisits();
+    else if (sec === 'notices') renderNotices();
+    else renderSettings();
+  }
+
+  function statBox(n, t) { return '<div class="stat-box"><span>' + t + '</span><b>' + n + '</b></div>'; }
+
+  /* ---------- 后台概览 ---------- */
+  function renderHome() {
+    var pets = DB.pets(), apps = DB.applications(), visits = DB.visits();
+    var pendingPets = pets.filter(function (p) { return p.status === '10'; });
+    var pendingApps = apps.filter(function (a) { return a.status === '01' || a.status === '02' || a.status === '03'; });
+    var pendingVisits = visits.filter(function (v) { return v.status === '01'; });
+
+    var todo = [];
+    pendingPets.forEach(function (p) {
+      todo.push('宠物「' + p.name + '」待审核 <span class="mono">' + p.id + '</span>');
+    });
+    pendingApps.forEach(function (a) {
+      todo.push('申请 <span class="mono">' + a.id + '</span> 处于「' + DICT.applyStatus[a.status] + '」');
+    });
+    pendingVisits.forEach(function (v) {
+      todo.push('回访 <span class="mono">' + v.id + '</span> 计划于 ' + v.planDate + ' 执行');
+    });
+
+    $('#panel').innerHTML =
+      '<div class="stat-row">' +
+        statBox(DB.users().length, '系统用户') +
+        statBox(pets.length, '在册宠物') +
+        statBox(pendingApps.length, '待处理申请') +
+        statBox(pendingVisits.length, '待回访任务') +
+      '</div>' +
+      '<div class="card"><h3 style="font-size:16px;margin-bottom:10px">待办事项</h3>' +
+        (todo.length ? '<ul style="display:grid;gap:8px;color:#5b6b7b;font-size:13.5px">' +
+          todo.slice(0, 8).map(function (t) {
+            return '<li style="padding:8px 12px;background:#f8fbf9;border-radius:8px">· ' + t + '</li>';
+          }).join('') + '</ul>'
+          : '<p style="color:#8b9aa8">暂无待处理事项，全部业务已处理完毕。</p>') +
+      '</div>' +
+      '<div class="card"><h3 style="font-size:16px;margin-bottom:10px">最近领养申请</h3>' +
+        '<div class="table-wrap" style="border:0"><table class="tb"><thead><tr>' +
+          '<th>申请单号</th><th>宠物</th><th>申请人</th><th>提交时间</th><th>状态</th>' +
+        '</tr></thead><tbody>' +
+        apps.slice().sort(function (a, b) { return a.createdAt < b.createdAt ? 1 : -1; }).slice(0, 5).map(function (a) {
+          var p = DB.pet(a.petId) || {}, u = DB.user(a.userId) || {};
+          return '<tr><td class="mono">' + esc(a.id) + '</td><td>' + esc(p.name || '—') + '</td>' +
+            '<td>' + esc(u.name || '—') + '</td><td>' + esc(a.createdAt) + '</td>' +
+            '<td>' + badge(DICT.applyStatus, a.status) + '</td></tr>';
+        }).join('') + '</tbody></table></div></div>';
+  }
+
+  /* ---------- 用户管理 ---------- */
+  function renderUsers() {
+    var kw = '';
+    $('#panelExtra').innerHTML = '<input id="userKw" placeholder="搜索编号 / 姓名 / 手机号" ' +
+      'style="border:1px solid #e4ece7;border-radius:8px;padding:7px 12px;outline:none;width:220px">';
+
+    function draw() {
+      var list = DB.users().filter(function (u) {
+        var t = (u.id + u.name + u.phone).toLowerCase();
+        return t.indexOf(kw.toLowerCase()) >= 0;
+      });
+      $('#panel').innerHTML = list.length
+        ? '<div class="table-wrap"><table class="tb"><thead><tr>' +
+            '<th>用户编号</th><th>姓名</th><th>角色</th><th>手机号</th><th>状态</th><th>注册时间</th><th>操作</th>' +
+          '</tr></thead><tbody>' +
+          list.map(function (u) {
+            return '<tr>' +
+              '<td class="mono">' + esc(u.id) + '</td>' +
+              '<td><b>' + esc(u.name) + '</b></td>' +
+              '<td>' + DICT.role[u.role] + '</td>' +
+              '<td>' + esc(u.phone) + '</td>' +
+              '<td>' + badge(DICT.account, u.status) + '</td>' +
+              '<td>' + esc(u.createdAt) + '</td>' +
+              '<td class="ops">' +
+                (u.id === DB.currentUser().id ? '<span style="color:#8b9aa8;font-size:12.5px">当前登录账号</span>'
+                  : '<button class="btn btn-line btn-sm" data-freeze="' + u.id + '" type="button">' +
+                    (u.status === '01' ? '冻结' : '解冻') + '</button>') +
+                '<button class="btn btn-line btn-sm" data-detail="' + u.id + '" type="button">详情</button>' +
+              '</td></tr>';
+          }).join('') + '</tbody></table></div>'
+        : emptyState('没有匹配的用户');
+
+      $$('[data-freeze]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          DB.toggleUserStatus(b.dataset.freeze);
+          toast('账号状态已更新');
+          draw();
+        });
+      });
+      $$('[data-detail]').forEach(function (b) {
+        b.addEventListener('click', function () { userDetail(b.dataset.detail); });
+      });
+    }
+
+    $('#userKw').addEventListener('input', function () { kw = this.value.trim(); draw(); });
+    draw();
+  }
+
+  function userDetail(id) {
+    var u = DB.user(id);
+    var apps = DB.applicationsOf(id);
+    openModal('用户详情 · ' + u.id,
+      '<div class="detail-attrs" style="margin-top:0">' +
+        '<div class="attr"><span>姓名</span><b>' + esc(u.name) + '</b></div>' +
+        '<div class="attr"><span>角色</span><b>' + DICT.role[u.role] + '</b></div>' +
+        '<div class="attr"><span>手机号</span><b>' + esc(u.phone) + '</b></div>' +
+        '<div class="attr"><span>身份证号</span><b>' + esc(u.idCard || '—') + '</b></div>' +
+        '<div class="attr"><span>联系地址</span><b>' + esc(u.address || '—') + '</b></div>' +
+        '<div class="attr"><span>账号状态</span><b>' + DICT.account[u.status] + '</b></div>' +
+      '</div>' +
+      '<p style="color:#5b6b7b;font-size:13.5px">领养申请 ' + apps.length + ' 条，' +
+        '其中成功 ' + apps.filter(function (a) { return a.status === '04'; }).length + ' 条。</p>',
+      '<button class="btn btn-primary" type="button" onclick="closeModal()">关闭</button>');
+  }
+
+  /* ---------- 宠物审核管理 ---------- */
+  function renderPets() {
+    var status = '';
+    $('#panelExtra').innerHTML = '<select id="petStatusSel" style="border:1px solid #e4ece7;border-radius:8px;padding:7px 10px;outline:none">' +
+      '<option value="">全部状态</option>' +
+      Object.keys(DICT.petStatus).map(function (k) {
+        return '<option value="' + k + '">' + DICT.petStatus[k] + '</option>';
+      }).join('') + '</select>';
+
+    function draw() {
+      var list = DB.pets().filter(function (p) { return !status || p.status === status; })
+        .sort(function (a, b) { return a.createdAt < b.createdAt ? 1 : -1; });
+      $('#panel').innerHTML = list.length
+        ? '<div class="table-wrap"><table class="tb"><thead><tr>' +
+            '<th>宠物编号</th><th>名称</th><th>类别 / 品种</th><th>健康状况</th><th>状态</th><th>登记时间</th><th>操作</th>' +
+          '</tr></thead><tbody>' +
+          list.map(function (p) {
+            return '<tr>' +
+              '<td class="mono">' + esc(p.id) + '</td>' +
+              '<td><b>' + esc(p.name) + '</b></td>' +
+              '<td>' + DICT.ptype[p.type] + ' / ' + esc(p.breed) + '</td>' +
+              '<td>' + DICT.health[p.health] + '</td>' +
+              '<td>' + badge(DICT.petStatus, p.status) + '</td>' +
+              '<td>' + esc(p.createdAt) + '</td>' +
+              '<td class="ops">' +
+                (p.status === '10'
+                  ? '<button class="btn btn-primary btn-sm" data-pass="' + p.id + '" type="button">审核通过</button>' +
+                    '<button class="btn btn-danger btn-sm" data-reject="' + p.id + '" type="button">驳回</button>'
+                  : '') +
+                (p.status === '20' ? '<button class="btn btn-line btn-sm" data-off="' + p.id + '" type="button">下架</button>' : '') +
+                '<button class="btn btn-line btn-sm" data-view="' + p.id + '" type="button">查看</button>' +
+              '</td></tr>';
+          }).join('') + '</tbody></table></div>'
+        : emptyState('没有符合条件的宠物档案');
+
+      $$('[data-pass]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          DB.updatePet(b.dataset.pass, { status: '20' });
+          toast('审核通过，宠物已可在前台展示');
+          draw();
+        });
+      });
+      $$('[data-reject]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          if (!confirm('确定驳回该送养信息吗？驳回后状态为已下架。')) return;
+          DB.updatePet(b.dataset.reject, { status: '50' });
+          toast('已驳回');
+          draw();
+        });
+      });
+      $$('[data-off]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          DB.updatePet(b.dataset.off, { status: '50' });
+          toast('已下架');
+          draw();
+        });
+      });
+      $$('[data-view]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          var p = DB.pet(b.dataset.view);
+          openModal('宠物档案 · ' + p.id,
+            '<div style="display:grid;grid-template-columns:200px 1fr;gap:16px">' +
+              '<div class="pet-thumb" style="border-radius:10px;overflow:hidden;height:150px">' +
+                '<img src="' + p.photo + '" style="width:100%;height:100%;object-fit:cover" onerror="imgFallback(this)"></div>' +
+              '<div class="detail-attrs" style="margin:0;grid-template-columns:1fr 1fr">' +
+                '<div class="attr"><span>名称</span><b>' + esc(p.name) + '</b></div>' +
+                '<div class="attr"><span>品种</span><b>' + esc(p.breed) + '</b></div>' +
+                '<div class="attr"><span>性别 / 年龄</span><b>' + DICT.gender[p.gender] + ' / ' + fmtAge(p.age) + '</b></div>' +
+                '<div class="attr"><span>体重</span><b>' + p.weight + ' kg</b></div>' +
+                '<div class="attr"><span>免疫 / 绝育</span><b>' + (p.vaccined ? '已免疫' : '未免疫') + ' / ' + (p.sterilized ? '已绝育' : '未绝育') + '</b></div>' +
+                '<div class="attr"><span>发布人</span><b>' + esc(p.createdBy) + '</b></div>' +
+              '</div>' +
+            '</div>' +
+            '<p style="color:#5b6b7b;font-size:13.5px;margin-top:12px">' + esc(p.desc) + '</p>',
+            '<button class="btn btn-primary" type="button" onclick="closeModal()">关闭</button>');
+        });
+      });
+    }
+
+    $('#petStatusSel').addEventListener('change', function () { status = this.value; draw(); });
+    draw();
+  }
+
+  /* ---------- 领养申请审核 ---------- */
+  function renderApps() {
+    var status = '';
+    $('#panelExtra').innerHTML = '<select id="appStatusSel" style="border:1px solid #e4ece7;border-radius:8px;padding:7px 10px;outline:none">' +
+      '<option value="">全部状态</option>' +
+      Object.keys(DICT.applyStatus).map(function (k) {
+        return '<option value="' + k + '">' + DICT.applyStatus[k] + '</option>';
+      }).join('') + '</select>';
+
+    function draw() {
+      var list = DB.applications().filter(function (a) { return !status || a.status === status; })
+        .sort(function (a, b) { return a.createdAt < b.createdAt ? 1 : -1; });
+      $('#panel').innerHTML = list.length
+        ? '<div class="table-wrap"><table class="tb"><thead><tr>' +
+            '<th>申请单号</th><th>申请宠物</th><th>申请人</th><th>住房 / 经验</th><th>提交时间</th><th>状态</th><th>操作</th>' +
+          '</tr></thead><tbody>' +
+          list.map(function (a) {
+            var p = DB.pet(a.petId) || { name: '—' }, u = DB.user(a.userId) || { name: '—' };
+            var canReview = ['01', '02', '03'].indexOf(a.status) >= 0;
+            return '<tr>' +
+              '<td class="mono">' + esc(a.id) + '</td>' +
+              '<td>' + esc(p.name) + '<div class="mono" style="font-size:11.5px">' + esc(a.petId) + '</div></td>' +
+              '<td>' + esc(u.name) + '<div class="mono" style="font-size:11.5px">' + esc(u.id) + '</div></td>' +
+              '<td>' + esc(a.houseType) + ' / ' + esc(a.experience) + '</td>' +
+              '<td>' + esc(a.createdAt) + '</td>' +
+              '<td>' + badge(DICT.applyStatus, a.status) + (a.agreementId ? '<div class="mono" style="font-size:11.5px;margin-top:2px">' + esc(a.agreementId) + '</div>' : '') + '</td>' +
+              '<td class="ops">' +
+                (canReview
+                  ? '<button class="btn btn-primary btn-sm" data-review="' + a.id + '" type="button">审核处理</button>'
+                  : '<button class="btn btn-line btn-sm" data-info="' + a.id + '" type="button">查看</button>') +
+              '</td></tr>';
+          }).join('') + '</tbody></table></div>'
+        : emptyState('没有符合条件的申请');
+
+      $$('[data-review]').forEach(function (b) {
+        b.addEventListener('click', function () { reviewModal(b.dataset.review, draw); });
+      });
+      $$('[data-info]').forEach(function (b) {
+        b.addEventListener('click', function () { infoModal(b.dataset.info); });
+      });
+    }
+
+    $('#appStatusSel').addEventListener('change', function () { status = this.value; draw(); });
+    draw();
+  }
+
+  function reviewModal(appId, cb) {
+    var a = DB.applications().filter(function (x) { return x.id === appId; })[0];
+    if (!a) return;
+    var u = DB.user(a.userId) || {}, p = DB.pet(a.petId) || {};
+    var actions = [];
+    if (a.status === '01') actions.push(['pass', '初审通过']);
+    if (a.status === '01' || a.status === '02') actions.push(['visit', '转家访核实']);
+    if (a.status === '02' || a.status === '03') actions.push(['success', '确认领养并签订协议']);
+    actions.push(['reject', '驳回申请']);
+
+    openModal('审核领养申请 · ' + a.id,
+      '<div class="detail-attrs" style="margin-top:0">' +
+        '<div class="attr"><span>申请人</span><b>' + esc(u.name) + '（' + esc(u.id) + '）</b></div>' +
+        '<div class="attr"><span>联系电话</span><b>' + esc(a.phone) + '</b></div>' +
+        '<div class="attr"><span>申请宠物</span><b>' + esc(p.name) + '（' + esc(a.petId) + '）</b></div>' +
+        '<div class="attr"><span>住房 / 经验</span><b>' + esc(a.houseType) + ' / ' + esc(a.experience) + '</b></div>' +
+      '</div>' +
+      '<div style="background:#f8fbf9;border-radius:10px;padding:12px;font-size:13.5px;color:#5b6b7b;margin-bottom:14px">' +
+        '<b style="color:#1f2d3a">领养理由</b><div style="margin-top:4px">' + esc(a.reason) + '</div></div>' +
+      '<div class="field"><label>处理意见 <i>*</i></label>' +
+        '<div class="radio-row">' + actions.map(function (act, i) {
+          return '<label><input type="radio" name="act" value="' + act[0] + '"' + (i === 0 ? ' checked' : '') + '> ' + act[1] + '</label>';
+        }).join('') + '</div></div>' +
+      '<div class="field" style="margin-top:12px"><label>审核备注</label>' +
+        '<textarea id="reviewNote" placeholder="如材料是否齐全、家访结论、协议签订情况等">' + esc(a.reviewNote || '') + '</textarea></div>' +
+      '<p style="color:#8b9aa8;font-size:12.5px;margin-top:8px">' +
+        '确认领养后系统将自动生成带校验位的领养协议编号，并将宠物状态置为“已领养”，同时创建首次回访任务。</p>',
+      '<button class="btn btn-line" type="button" onclick="closeModal()">取消</button>' +
+      '<button class="btn btn-primary" id="btnDoReview" type="button">提交处理</button>',
+      function () {
+        $('#btnDoReview').addEventListener('click', function () {
+          var act = $('input[name="act"]:checked').value;
+          var note = $('#reviewNote').value.trim();
+          if ((act === 'reject' || act === 'pass') && !note) return toast('请填写审核备注', 'warn');
+          var res = DB.reviewApplication(appId, act, note);
+          if (!res.ok) return toast(res.msg, 'err');
+          closeModal();
+          if (act === 'success') toast('已确认领养，协议编号 ' + res.app.agreementId);
+          else toast('处理完成：' + DICT.applyStatus[res.app.status]);
+          if (cb) cb();
+        });
+      });
+  }
+
+  function infoModal(appId) {
+    var a = DB.applications().filter(function (x) { return x.id === appId; })[0];
+    var u = DB.user(a.userId) || {}, p = DB.pet(a.petId) || {};
+    openModal('申请详情 · ' + a.id,
+      '<div class="detail-attrs" style="margin-top:0">' +
+        '<div class="attr"><span>状态</span><b>' + DICT.applyStatus[a.status] + '</b></div>' +
+        '<div class="attr"><span>协议编号</span><b class="mono">' + esc(a.agreementId || '—') + '</b></div>' +
+        '<div class="attr"><span>申请人</span><b>' + esc(u.name) + '</b></div>' +
+        '<div class="attr"><span>宠物</span><b>' + esc(p.name) + '</b></div>' +
+      '</div>' +
+      '<div style="background:#f8fbf9;border-radius:10px;padding:12px;font-size:13.5px;color:#5b6b7b">' +
+        '<div><b style="color:#1f2d3a">审核备注：</b>' + esc(a.reviewNote || '—') + '</div>' +
+        '<div style="margin-top:6px"><b style="color:#1f2d3a">最后更新：</b>' + esc(a.updatedAt) + '</div></div>',
+      '<button class="btn btn-primary" type="button" onclick="closeModal()">关闭</button>');
+  }
+
+  /* ---------- 回访管理 ---------- */
+  function renderVisits() {
+    $('#panelExtra').innerHTML = '<button class="btn btn-primary btn-sm" id="btnNewVisit" type="button">+ 新建回访任务</button>';
+
+    function draw() {
+      var list = DB.visits().slice().sort(function (a, b) { return a.planDate < b.planDate ? 1 : -1; });
+      $('#panel').innerHTML = list.length
+        ? '<div class="table-wrap"><table class="tb"><thead><tr>' +
+            '<th>回访单号</th><th>领养宠物</th><th>领养人</th><th>计划日期</th><th>实际日期</th><th>状态</th><th>回访说明</th><th>操作</th>' +
+          '</tr></thead><tbody>' +
+          list.map(function (v) {
+            var p = DB.pet(v.petId) || { name: '—' }, u = DB.user(v.userId) || { name: '—' };
+            return '<tr>' +
+              '<td class="mono">' + esc(v.id) + '</td>' +
+              '<td>' + esc(p.name) + '</td>' +
+              '<td>' + esc(u.name) + '</td>' +
+              '<td>' + esc(v.planDate) + '</td>' +
+              '<td>' + esc(v.actualDate || '—') + '</td>' +
+              '<td>' + badge(DICT.visitStatus, v.status) + '</td>' +
+              '<td style="max-width:220px">' + esc(v.note || '—') + '</td>' +
+              '<td class="ops">' + (v.status === '01'
+                ? '<button class="btn btn-primary btn-sm" data-do="' + v.id + '" type="button">记录回访</button>'
+                : '<button class="btn btn-line btn-sm" data-again="' + v.id + '" type="button">追加回访</button>') + '</td>' +
+            '</tr>';
+          }).join('') + '</tbody></table></div>'
+        : emptyState('暂无回访任务');
+      bind();
+    }
+
+    function bind() {
+      $$('[data-do]').forEach(function (b) {
+        b.addEventListener('click', function () { visitModal(b.dataset.do, draw); });
+      });
+      $$('[data-again]').forEach(function (b) {
+        b.addEventListener('click', function () { visitModal(b.dataset.again, draw); });
+      });
+      var nb = $('#btnNewVisit');
+      if (nb) {
+        nb.addEventListener('click', function () {
+          var adopted = DB.applications().filter(function (a) { return a.status === '04'; });
+          if (!adopted.length) return toast('暂无领养成功的记录，无法新建回访', 'warn');
+          openModal('新建回访任务',
+            '<div class="field"><label>选择领养记录 <i>*</i></label><select id="nApp">' +
+              adopted.map(function (a) {
+                var p = DB.pet(a.petId) || {}, u = DB.user(a.userId) || {};
+                return '<option value="' + a.id + '">' + esc(a.id) + ' · ' + esc(p.name) + ' · ' + esc(u.name) + '</option>';
+              }).join('') + '</select></div>' +
+            '<div class="field" style="margin-top:12px"><label>计划回访日期 <i>*</i></label>' +
+              '<input type="date" id="nDate" value="' + todayStr() + '"></div>',
+            '<button class="btn btn-line" type="button" onclick="closeModal()">取消</button>' +
+            '<button class="btn btn-primary" id="btnAddVisit" type="button">创建</button>',
+            function () {
+              $('#btnAddVisit').addEventListener('click', function () {
+                var res = DB.addVisitPlan({
+                  applicationId: $('#nApp').value,
+                  planDate: $('#nDate').value,
+                  visitor: DB.currentUser().name
+                });
+                if (!res.ok) return toast(res.msg, 'err');
+                closeModal();
+                toast('回访任务已创建');
+                draw();
+              });
+            });
+        });
+      }
+    }
+
+    draw();
+  }
+
+  function visitModal(visitId, cb) {
+    var v = DB.visits().filter(function (x) { return x.id === visitId; })[0];
+    if (!v) return;
+    var p = DB.pet(v.petId) || {}, u = DB.user(v.userId) || {};
+    openModal('记录回访 · ' + v.id,
+      '<div class="detail-attrs" style="margin-top:0">' +
+        '<div class="attr"><span>领养宠物</span><b>' + esc(p.name) + '</b></div>' +
+        '<div class="attr"><span>领养人</span><b>' + esc(u.name) + '</b></div>' +
+        '<div class="attr"><span>计划日期</span><b>' + esc(v.planDate) + '</b></div>' +
+        '<div class="attr"><span>回访人</span><b>' + esc(v.visitor) + '</b></div>' +
+      '</div>' +
+      '<div class="field"><label>回访结果 <i>*</i></label><div class="radio-row">' +
+        '<label><input type="radio" name="vres" value="02" checked> 回访正常</label>' +
+        '<label><input type="radio" name="vres" value="03"> 异常待处理</label></div></div>' +
+      '<div class="field" style="margin-top:12px"><label>回访说明 <i>*</i></label>' +
+        '<textarea id="vNote" placeholder="记录宠物饮食、健康、行为适应情况，以及需要跟进的问题">' + esc(v.note || '') + '</textarea></div>',
+      '<button class="btn btn-line" type="button" onclick="closeModal()">取消</button>' +
+      '<button class="btn btn-primary" id="btnSaveVisit" type="button">保存回访记录</button>',
+      function () {
+        $('#btnSaveVisit').addEventListener('click', function () {
+          var note = $('#vNote').value.trim();
+          if (note.length < 5) return toast('请填写回访说明（不少于 5 个字）', 'warn');
+          DB.finishVisit(visitId, { result: $('input[name="vres"]:checked').value, note: note });
+          closeModal();
+          toast('回访记录已保存');
+          if (cb) cb();
+        });
+      });
+  }
+
+  /* ---------- 公告管理 ---------- */
+  function renderNotices() {
+    $('#panelExtra').innerHTML = '<button class="btn btn-primary btn-sm" id="btnNewNotice" type="button">+ 发布公告</button>';
+
+    function draw() {
+      var list = DB.notices();
+      $('#panel').innerHTML = list.length
+        ? '<div class="table-wrap"><table class="tb"><thead><tr>' +
+            '<th>公告编号</th><th>标题</th><th>类型</th><th>置顶</th><th>发布时间</th><th>操作</th>' +
+          '</tr></thead><tbody>' +
+          list.map(function (n) {
+            return '<tr>' +
+              '<td class="mono">' + esc(n.id) + '</td>' +
+              '<td><b>' + esc(n.title) + '</b></td>' +
+              '<td>' + esc(n.type) + '</td>' +
+              '<td>' + (n.top ? '是' : '否') + '</td>' +
+              '<td>' + esc(n.createdAt) + '</td>' +
+              '<td class="ops">' +
+                '<button class="btn btn-line btn-sm" data-edit="' + n.id + '" type="button">编辑</button>' +
+                '<button class="btn btn-danger btn-sm" data-del="' + n.id + '" type="button">删除</button>' +
+              '</td></tr>';
+          }).join('') + '</tbody></table></div>'
+        : emptyState('还没有发布过公告');
+      bind();
+    }
+
+    function bind() {
+      $$('[data-edit]').forEach(function (b) {
+        b.addEventListener('click', function () { noticeModal(b.dataset.edit, draw); });
+      });
+      $$('[data-del]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          if (!confirm('确定删除该公告吗？')) return;
+          DB.deleteNotice(b.dataset.del);
+          toast('已删除');
+          draw();
+        });
+      });
+      var nb = $('#btnNewNotice');
+      if (nb) nb.addEventListener('click', function () { noticeModal('', draw); });
+    }
+
+    draw();
+  }
+
+  function noticeModal(id, cb) {
+    var n = id ? DB.notices().filter(function (x) { return x.id === id; })[0] : null;
+    openModal(n ? '编辑公告 · ' + n.id : '发布公告',
+      '<div class="form-grid">' +
+        '<div class="field full"><label>公告标题 <i>*</i></label><input id="nTitle" value="' + esc(n ? n.title : '') + '"></div>' +
+        '<div class="field"><label>公告类型</label><select id="nType">' +
+          ['领养须知', '公益活动', '制度说明', '其他'].map(function (t) {
+            return '<option' + (n && n.type === t ? ' selected' : '') + '>' + t + '</option>';
+          }).join('') + '</select></div>' +
+        '<div class="field"><label>是否置顶</label><select id="nTop">' +
+          '<option value="0"' + (n && !n.top ? ' selected' : '') + '>否</option>' +
+          '<option value="1"' + (n && n.top ? ' selected' : '') + '>是</option></select></div>' +
+        '<div class="field full"><label>公告内容 <i>*</i></label>' +
+          '<textarea id="nContent" style="min-height:150px">' + esc(n ? n.content : '') + '</textarea></div>' +
+      '</div>',
+      '<button class="btn btn-line" type="button" onclick="closeModal()">取消</button>' +
+      '<button class="btn btn-primary" id="btnSaveNotice" type="button">保存</button>',
+      function () {
+        $('#btnSaveNotice').addEventListener('click', function () {
+          var title = $('#nTitle').value.trim();
+          var content = $('#nContent').value.trim();
+          if (!title) return toast('请填写公告标题', 'warn');
+          if (content.length < 10) return toast('公告内容不少于 10 个字', 'warn');
+          var res = DB.saveNotice({
+            id: n ? n.id : '', title: title, content: content,
+            type: $('#nType').value, top: $('#nTop').value === '1'
+          });
+          if (!res.ok) return toast(res.msg, 'err');
+          closeModal();
+          toast(n ? '公告已更新' : '公告已发布，编号 ' + res.notice.id);
+          cb();
+        });
+      });
+  }
+
+  /* ---------- 系统设置 ---------- */
+  function renderSettings() {
+    var s = DB.settings();
+    $('#panel').innerHTML =
+      '<div class="card">' +
+        '<div class="form-grid">' +
+          '<div class="field"><label>站点名称</label><input id="sName" value="' + esc(s.siteName) + '"></div>' +
+          '<div class="field"><label>领养热线</label><input id="sHot" value="' + esc(s.hotline) + '"></div>' +
+          '<div class="field"><label>站点地址</label><input id="sAddr" value="' + esc(s.address) + '"></div>' +
+          '<div class="field"><label>服务时间</label><input id="sTime" value="' + esc(s.workTime) + '"></div>' +
+          '<div class="field"><label>首次回访间隔（天）</label>' +
+            '<input id="sDays" type="number" min="1" value="' + s.visitDays + '"></div>' +
+          '<div class="field"><label>宠物状态码预览</label>' +
+            '<input value="10 待审核 / 20 待领养 / 30 申请中 / 40 已领养 / 50 已下架" disabled></div>' +
+          '<div class="field full"><label>领养要求</label>' +
+            '<textarea id="sRules" style="min-height:150px">' + esc(s.rules) + '</textarea></div>' +
+        '</div>' +
+        '<div class="form-actions"><button class="btn btn-primary" id="btnSaveSet" type="button">保存设置</button></div>' +
+      '</div>' +
+      '<div class="card"><h3 style="font-size:16px;margin-bottom:8px">数据维护</h3>' +
+        '<p style="color:#5b6b7b;font-size:13.5px">系统为纯前端演示版本，业务数据保存在当前浏览器的 localStorage 中。' +
+        '重置后所有演示数据将恢复到初始状态，已提交的申请与收藏会被清空。</p>' +
+        '<div class="form-actions"><button class="btn btn-danger" id="btnReset" type="button">重置演示数据</button></div></div>';
+
+    $('#btnSaveSet').addEventListener('click', function () {
+      var days = Number($('#sDays').value);
+      if (!days || days < 1) return toast('回访间隔天数需大于 0', 'warn');
+      DB.saveSettings({
+        siteName: $('#sName').value.trim() || s.siteName,
+        hotline: $('#sHot').value.trim(),
+        address: $('#sAddr').value.trim(),
+        workTime: $('#sTime').value.trim(),
+        visitDays: days,
+        rules: $('#sRules').value
+      });
+      toast('设置已保存');
+      setTimeout(function () { location.reload(); }, 600);
+    });
+
+    $('#btnReset').addEventListener('click', function () {
+      if (!confirm('确定重置全部演示数据吗？该操作不可撤销。')) return;
+      DB.reset();
+      toast('已恢复初始演示数据');
+      setTimeout(function () { location.href = 'admin.html'; }, 700);
+    });
+  }
+
+  $$('.menu [data-sec]').forEach(function (b) {
+    b.addEventListener('click', function () { sec = b.dataset.sec; boot(); });
+  });
+
+  boot();
+</script>
+</body>
+</html>

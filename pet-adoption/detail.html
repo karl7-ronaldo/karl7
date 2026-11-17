@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>宠物详情 · 暖爪宠物领养中心</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="wrap">
+  <div class="crumb" style="padding-top:18px">
+    <a href="index.html">首页</a> / <a href="list.html">宠物领养</a> / 详情
+  </div>
+  <div id="detailBox"></div>
+  <div id="moreBox"></div>
+</div>
+
+<script src="js/store.js"></script>
+<script src="js/common.js"></script>
+<script>
+  renderLayout('list');
+
+  var id = new URLSearchParams(location.search).get('id');
+  var pet = DB.pet(id);
+  var user = DB.currentUser();
+
+  if (!pet) {
+    $('#detailBox').innerHTML = '<div style="padding:40px 0">' + emptyState('宠物档案不存在或已被删除') +
+      '<div style="text-align:center;margin-top:16px"><a class="btn btn-primary" href="list.html">返回宠物列表</a></div></div>';
+  } else {
+    document.title = pet.name + ' · 宠物详情';
+    var fav = user ? DB.isFavorite(user.id, pet.id) : false;
+    var myApp = user ? DB.applications().filter(function (a) {
+      return a.petId === pet.id && a.userId === user.id && a.status !== '06';
+    })[0] : null;
+    var canApply = pet.status === '20' && !myApp;
+
+    var applyBtn = '';
+    if (myApp) {
+      applyBtn = '<button class="btn btn-line" type="button" disabled>已提交申请（' + DICT.applyStatus[myApp.status] + '）</button>' +
+        '<a class="btn btn-line" href="center.html">查看进度</a>';
+    } else if (pet.status === '20') {
+      applyBtn = '<button class="btn btn-primary" id="btnApply" type="button">申请领养</button>';
+    } else {
+      applyBtn = '<button class="btn btn-line" type="button" disabled>' + DICT.petStatus[pet.status] + '，暂不可申请</button>';
+    }
+
+    $('#detailBox').innerHTML =
+      '<div class="detail">' +
+        '<div class="detail-pic"><img src="' + pet.photo + '" alt="' + esc(pet.name) + '" onerror="imgFallback(this)"></div>' +
+        '<div class="detail-info">' +
+          '<h1>' + esc(pet.name) + badge(DICT.petStatus, pet.status) + '</h1>' +
+          '<div class="sub">' + esc(pet.breed) + ' · ' + DICT.ptype[pet.type] + ' · ' + fmtAge(pet.age) + '</div>' +
+          '<div class="detail-attrs">' +
+            '<div class="attr"><span>宠物编号</span><b class="mono">' + esc(pet.id) + '</b></div>' +
+            '<div class="attr"><span>性别</span><b>' + DICT.gender[pet.gender] + '</b></div>' +
+            '<div class="attr"><span>年龄</span><b>' + fmtAge(pet.age) + '</b></div>' +
+            '<div class="attr"><span>体重</span><b>' + pet.weight + ' kg</b></div>' +
+            '<div class="attr"><span>健康状态</span><b>' + DICT.health[pet.health] + '</b></div>' +
+            '<div class="attr"><span>免疫 / 绝育</span><b>' + (pet.vaccined ? '已免疫' : '未免疫') + ' / ' + (pet.sterilized ? '已绝育' : '未绝育') + '</b></div>' +
+            '<div class="attr"><span>所属救助站</span><b>' + esc(pet.station) + '</b></div>' +
+            '<div class="attr"><span>入站登记</span><b>' + esc(pet.createdAt) + '</b></div>' +
+          '</div>' +
+          '<div class="detail-actions">' +
+            '<button class="btn ' + (fav ? 'btn-accent' : 'btn-line') + '" id="btnFav" type="button">' +
+              (fav ? '★ 已收藏' : '☆ 收藏') + '</button>' +
+            applyBtn +
+          '</div>' +
+          '<div class="detail-id">档案编号 ' + esc(pet.id) + ' · 资料由救助站登记并经管理员审核</div>' +
+        '</div>' +
+      '</div>' +
+
+      '<div class="block"><h3>宠物简介</h3><p class="prose">' + esc(pet.desc || '暂无简介') + '</p></div>' +
+
+      '<div class="block"><h3>领养要求</h3>' +
+        '<pre style="white-space:pre-wrap;font-family:inherit;color:#5b6b7b;font-size:14px;line-height:1.95">' +
+        esc(DB.settings().rules) + '</pre>' +
+        '<div class="notice-box"><h4>温馨提示</h4>' +
+          '<pre>提交申请后，管理员将在 1-2 个工作日内完成材料初审；初审通过后安排家访核实，' +
+          '双方确认无误即可签订领养协议，协议编号可在个人中心查询，并自动生成首次回访任务。</pre></div>' +
+      '</div>';
+
+    /* 收藏 */
+    $('#btnFav').addEventListener('click', function () {
+      var u = DB.currentUser();
+      if (!u) { location.href = 'login.html?redirect=' + encodeURIComponent('detail.html?id=' + pet.id); return; }
+      var on = DB.toggleFavorite(u.id, pet.id);
+      this.className = 'btn ' + (on ? 'btn-accent' : 'btn-line');
+      this.textContent = on ? '★ 已收藏' : '☆ 收藏';
+      toast(on ? '已加入收藏' : '已取消收藏');
+    });
+
+    /* 申请领养 */
+    var btnApply = $('#btnApply');
+    if (btnApply) {
+      btnApply.addEventListener('click', function () {
+        var u = DB.currentUser();
+        if (!u) { location.href = 'login.html?redirect=' + encodeURIComponent('detail.html?id=' + pet.id); return; }
+        openApplyModal(u);
+      });
+    }
+
+    /* 相似推荐 */
+    var more = DB.pets().filter(function (p) {
+      return p.id !== pet.id && p.type === pet.type && p.status === '20';
+    }).slice(0, 3);
+    if (more.length) {
+      $('#moreBox').innerHTML = '<div class="section-hd" style="margin-top:32px"><div><h2>相似的小家伙</h2>' +
+        '<p>同样是' + DICT.ptype[pet.type] + '，也许更适合你</p></div></div>' +
+        '<div class="pet-grid">' + more.map(petCard).join('') + '</div>';
+    }
+  }
+
+  /* 申请表单弹窗 */
+  function openApplyModal(u) {
+    var body =
+      '<div class="badge b-20" style="margin-bottom:12px">申请宠物：' + esc(pet.name) + '（' + esc(pet.id) + '）</div>' +
+      '<div class="form-grid">' +
+        '<div class="field full"><label>领养理由 <i>*</i></label>' +
+          '<textarea id="fReason" placeholder="请说明领养动机、居住环境、每天可陪伴的时间等（不少于 10 个字）"></textarea></div>' +
+        '<div class="field"><label>养宠经验 <i>*</i></label>' +
+          '<select id="fExp"><option value="有">有养宠经验</option><option value="无">首次养宠</option></select></div>' +
+        '<div class="field"><label>住房情况 <i>*</i></label>' +
+          '<select id="fHouse"><option value="自有住房">自有住房</option><option value="租房">租房</option>' +
+          '<option value="与家人同住">与家人同住</option></select></div>' +
+        '<div class="field"><label>家庭成员是否同意 <i>*</i></label>' +
+          '<select id="fFamily"><option value="是">是，均已同意</option><option value="否">否</option></select></div>' +
+        '<div class="field"><label>联系电话 <i>*</i></label>' +
+          '<input id="fPhone" type="text" value="' + esc(u.phone) + '"></div>' +
+        '<div class="field full"><label>领养人</label>' +
+          '<input type="text" value="' + esc(u.name) + '（' + esc(u.id) + '）" disabled></div>' +
+        '<label class="agree-line field full"><input type="checkbox" id="fAgree" style="width:16px;height:16px;margin-top:3px">' +
+          '<span>我已阅读并同意《领养要求》，承诺不遗弃、不转卖，接受救助站的定期回访。</span></label>' +
+      '</div>';
+    openModal('提交领养申请', body,
+      '<button class="btn btn-line" type="button" onclick="closeModal()">取消</button>' +
+      '<button class="btn btn-primary" type="button" id="btnSubmitApp">提交申请</button>',
+      function () {
+        $('#btnSubmitApp').addEventListener('click', function () {
+          var reason = $('#fReason').value.trim();
+          var phone = $('#fPhone').value.trim();
+          if (reason.length < 10) return toast('领养理由不少于 10 个字', 'warn');
+          if (!/^1\d{10}$/.test(phone)) return toast('请输入 11 位手机号码', 'warn');
+          if (!$('#fAgree').checked) return toast('请先勾选同意领养要求', 'warn');
+          var res = DB.submitApplication({
+            petId: pet.id, reason: reason,
+            experience: $('#fExp').value, houseType: $('#fHouse').value,
+            familyAgree: $('#fFamily').value, phone: phone
+          }, u);
+          if (!res.ok) return toast(res.msg, 'err');
+          closeModal();
+          toast('提交成功，申请单号 ' + res.app.id);
+          setTimeout(function () { location.reload(); }, 800);
+        });
+      });
+  }
+</script>
+</body>
+</html>

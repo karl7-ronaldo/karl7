@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>登录 / 注册 · 暖爪宠物领养中心</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="wrap" style="max-width:1040px;padding-top:40px;padding-bottom:60px">
+  <div style="display:grid;grid-template-columns:1fr 440px;gap:34px;align-items:center">
+
+    <div>
+      <h1 style="font-size:30px;line-height:1.4">欢迎回到<span style="color:#2f9e75">暖爪</span></h1>
+      <p style="color:#5b6b7b;margin-top:14px;font-size:15px;max-width:420px">
+        登录后可以收藏心仪的宠物、提交领养申请并查看审核进度；<br>
+        送养人与管理员账号还可进入送养端与后台管理。
+      </p>
+      <div style="margin-top:26px;background:#fff;border:1px solid #e4ece7;border-radius:14px;padding:18px 20px;max-width:440px">
+        <div style="font-weight:700;margin-bottom:8px;font-size:14px">演示账号（密码均为 123456）</div>
+        <div style="display:grid;gap:8px;font-size:13.5px;color:#5b6b7b">
+          <div>领养人：<span class="mono">U000001</span> / 张小雨</div>
+          <div>送养人：<span class="mono">S001</span> / 陈芳（门店店员）</div>
+          <div>管理员：<span class="mono">A001</span> / 刘洋</div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:12px">
+          <button class="btn btn-line btn-sm" data-fill="U000001" type="button">填入领养人</button>
+          <button class="btn btn-line btn-sm" data-fill="S001" type="button">填入送养人</button>
+          <button class="btn btn-line btn-sm" data-fill="A001" type="button">填入管理员</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="padding:0;overflow:hidden">
+      <div style="display:flex;border-bottom:1px solid #e4ece7">
+        <button class="tab-btn" data-tab="login" type="button"
+          style="flex:1;padding:16px;background:none;border:0;font-size:16px;font-weight:700;color:#2f9e75;border-bottom:2px solid #2f9e75;cursor:pointer">登录</button>
+        <button class="tab-btn" data-tab="reg" type="button"
+          style="flex:1;padding:16px;background:none;border:0;font-size:16px;color:#8b9aa8;border-bottom:2px solid transparent;cursor:pointer">注册</button>
+      </div>
+
+      <!-- 登录 -->
+      <form id="loginForm" style="padding:24px">
+        <div class="field"><label>账号 / 手机号</label>
+          <input type="text" id="loginAcc" placeholder="如 U000001 或 13800000001" autocomplete="username"></div>
+        <div class="field" style="margin-top:14px"><label>密码</label>
+          <input type="password" id="loginPwd" placeholder="请输入密码" autocomplete="current-password"></div>
+        <button class="btn btn-primary btn-block" type="submit" style="margin-top:20px">登录</button>
+        <p style="color:#8b9aa8;font-size:12.5px;margin-top:12px;text-align:center">
+          连续输入错误将被记录，请确认账号信息</p>
+      </form>
+
+      <!-- 注册 -->
+      <form id="regForm" style="padding:24px;display:none">
+        <div class="field"><label>注册身份</label>
+          <div class="radio-row">
+            <label><input type="radio" name="role" value="01" checked> 领养人</label>
+            <label><input type="radio" name="role" value="02"> 送养人</label>
+          </div>
+        </div>
+        <div class="field" style="margin-top:12px"><label>姓名 <i>*</i></label>
+          <input type="text" id="regName" placeholder="请输入真实姓名"></div>
+        <div class="field" style="margin-top:12px"><label>手机号 <i>*</i></label>
+          <input type="text" id="regPhone" placeholder="11 位手机号码"></div>
+        <div class="field" style="margin-top:12px"><label>身份证号 <span id="idHint" style="color:#8b9aa8">（领养人必填）</span></label>
+          <input type="text" id="regIdCard" placeholder="18 位身份证号"></div>
+        <div class="field" style="margin-top:12px"><label>联系地址</label>
+          <input type="text" id="regAddr" placeholder="用于家访核实"></div>
+        <div class="field" style="margin-top:12px"><label>设置密码 <i>*</i></label>
+          <input type="password" id="regPwd" placeholder="不少于 6 位"></div>
+        <div class="field" style="margin-top:12px"><label>确认密码 <i>*</i></label>
+          <input type="password" id="regPwd2" placeholder="再次输入密码"></div>
+        <button class="btn btn-primary btn-block" type="submit" style="margin-top:20px">注册并登录</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script src="js/store.js"></script>
+<script src="js/common.js"></script>
+<script>
+  renderLayout('');
+
+  var redirect = new URLSearchParams(location.search).get('redirect') || 'index.html';
+
+  /* 已登录提示 */
+  var cur = DB.currentUser();
+  if (cur) {
+    toast('当前已登录：' + cur.name + '（' + DICT.role[cur.role] + '）');
+  }
+
+  /* 切换登录 / 注册 */
+  $$('.tab-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var tab = btn.dataset.tab;
+      $$('.tab-btn').forEach(function (b) {
+        var on = b.dataset.tab === tab;
+        b.style.color = on ? '#2f9e75' : '#8b9aa8';
+        b.style.fontWeight = on ? '700' : '400';
+        b.style.borderBottom = on ? '2px solid #2f9e75' : '2px solid transparent';
+      });
+      $('#loginForm').style.display = tab === 'login' ? 'block' : 'none';
+      $('#regForm').style.display = tab === 'reg' ? 'block' : 'none';
+    });
+  });
+
+  /* 演示账号一键填入 */
+  $$('[data-fill]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      $('#loginAcc').value = b.dataset.fill;
+      $('#loginPwd').value = '123456';
+      toast('已填入演示账号，点击登录即可');
+    });
+  });
+
+  /* 登录 */
+  $('#loginForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var acc = $('#loginAcc').value.trim();
+    var pwd = $('#loginPwd').value;
+    if (!acc || !pwd) return toast('请输入账号和密码', 'warn');
+    var res = DB.login(acc, pwd);
+    if (!res.ok) return toast(res.msg, 'err');
+    toast('登录成功，欢迎 ' + res.user.name);
+    setTimeout(function () {
+      if (res.user.role === '03') location.href = 'admin.html';
+      else if (res.user.role === '02') location.href = 'shelter.html';
+      else location.href = redirect;
+    }, 600);
+  });
+
+  /* 注册 */
+  $('#regForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var role = $('input[name="role"]:checked').value;
+    var name = $('#regName').value.trim();
+    var phone = $('#regPhone').value.trim();
+    var idCard = $('#regIdCard').value.trim();
+    var pwd = $('#regPwd').value;
+    if (!name) return toast('请填写姓名', 'warn');
+    if (!/^1\d{10}$/.test(phone)) return toast('请输入 11 位手机号码', 'warn');
+    if (role === '01' && !idCard) return toast('领养人需填写身份证号', 'warn');
+    if (pwd.length < 6) return toast('密码不少于 6 位', 'warn');
+    if (pwd !== $('#regPwd2').value) return toast('两次输入的密码不一致', 'warn');
+
+    var res = DB.register({
+      role: role, name: name, phone: phone, idCard: idCard,
+      address: $('#regAddr').value.trim(), password: pwd
+    });
+    if (!res.ok) return toast(res.msg, 'err');
+    toast('注册成功，你的编号是 ' + res.user.id);
+    setTimeout(function () { location.href = role === '02' ? 'shelter.html' : 'index.html'; }, 900);
+  });
+</script>
+</body>
+</html>

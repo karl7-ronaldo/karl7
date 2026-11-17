@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>暖爪宠物领养中心 · 首页</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<main>
+  <!-- 首屏 -->
+  <section class="hero">
+    <div class="wrap hero-in">
+      <div>
+        <h1>领养代替购买<br>让每个小生命都有<em>一个家</em></h1>
+        <p class="lead">暖爪宠物领养中心把宠物档案、领养申请、审核家访与领养后回访全部搬到线上，
+          让每一次领养都流程清晰、材料可查、责任可追溯。</p>
+        <div class="hero-tags">
+          <span>✓ 全流程线上审核</span>
+          <span>✓ 7 天回访跟踪</span>
+          <span>✓ 科学养宠指导</span>
+        </div>
+        <form class="searchbar" action="list.html" method="get">
+          <select name="type">
+            <option value="">全部类别</option>
+            <option value="01">犬</option>
+            <option value="02">猫</option>
+            <option value="03">其他</option>
+          </select>
+          <input type="text" name="kw" placeholder="搜索宠物名称、品种或编号">
+          <button class="btn btn-primary" type="submit">搜索</button>
+        </form>
+      </div>
+      <div class="hero-pic">
+        <img src="assets/hero.jpg" alt="领养家庭" onerror="imgFallback(this)">
+      </div>
+    </div>
+  </section>
+
+  <!-- 数据概览 -->
+  <div class="wrap">
+    <div class="stats" id="stats"></div>
+  </div>
+
+  <!-- 推荐宠物 -->
+  <section class="section wrap">
+    <div class="section-hd">
+      <div>
+        <h2>等待领养的小家伙</h2>
+        <p>所有宠物均已完成健康检查，档案由救助站统一登记</p>
+      </div>
+      <a href="list.html">查看全部宠物 →</a>
+    </div>
+    <div class="pet-grid" id="petGrid"></div>
+  </section>
+
+  <!-- 公告 + 流程 -->
+  <section class="section wrap" id="notices">
+    <div class="section-hd">
+      <div>
+        <h2>公告资讯与领养流程</h2>
+        <p>了解领养规则，是负责的第一步</p>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1.02fr .98fr;gap:24px;align-items:start" class="notice-flow">
+      <div class="notice-list" id="noticeList"></div>
+      <div>
+        <div class="flow" id="flowBox"></div>
+        <div class="block" style="margin-top:18px">
+          <h3>领养条件</h3>
+          <pre style="white-space:pre-wrap;font-family:inherit;color:#5b6b7b;font-size:13.5px;line-height:1.95" id="ruleBox"></pre>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script src="js/store.js"></script>
+<script src="js/common.js"></script>
+<script>
+  renderLayout('home');
+
+  /* 数据概览 */
+  var pets = DB.pets();
+  var stats = [
+    { n: pets.length, t: '在册宠物档案' },
+    { n: pets.filter(function (p) { return p.status === '20'; }).length, t: '当前待领养' },
+    { n: DB.applications().filter(function (a) { return a.status === '04'; }).length, t: '已完成领养' },
+    { n: DB.visits().filter(function (v) { return v.status === '02'; }).length, t: '回访记录' }
+  ];
+  $('#stats').innerHTML = stats.map(function (s) {
+    return '<div class="stat"><b>' + s.n + '</b><span>' + s.t + '</span></div>';
+  }).join('');
+
+  /* 推荐宠物：待领养，按登记时间倒序 */
+  var list = pets.filter(function (p) { return p.status === '20'; })
+    .sort(function (a, b) { return a.createdAt < b.createdAt ? 1 : -1; }).slice(0, 6);
+  $('#petGrid').innerHTML = list.length ? list.map(petCard).join('') : emptyState('暂时没有待领养的宠物，请稍后再来看看');
+
+  /* 公告 */
+  var notices = DB.notices().slice(0, 3);
+  $('#noticeList').innerHTML = notices.map(function (n) {
+    return '<article class="notice-item" data-id="' + n.id + '">' +
+      '<div class="top"><span class="type">' + esc(n.type) + '</span>' +
+      '<h4>' + esc(n.title) + '</h4></div>' +
+      '<p>' + esc(n.content.slice(0, 62)) + '…</p>' +
+      '<div class="date" style="margin-top:6px">' + esc(n.createdAt) + ' · 编号 ' + esc(n.id) + '</div>' +
+    '</article>';
+  }).join('');
+
+  $$('.notice-item').forEach(function (item) {
+    item.addEventListener('click', function () {
+      var n = DB.notices().filter(function (x) { return x.id === item.dataset.id; })[0];
+      if (!n) return;
+      openModal(n.title,
+        '<div class="badge b-20" style="margin-bottom:10px">' + esc(n.type) + '</div>' +
+        '<div class="prose" style="white-space:pre-wrap">' + esc(n.content) + '</div>' +
+        '<div class="date" style="color:#8b9aa8;font-size:12.5px;margin-top:14px">发布编号 ' + esc(n.id) + ' · ' + esc(n.createdAt) + '</div>',
+        '<button class="btn btn-primary" onclick="closeModal()">知道了</button>');
+    });
+  });
+
+  /* 领养流程 */
+  var flow = [
+    ['提交申请', '选择宠物并填写领养理由、居住与家庭情况'],
+    ['材料审核', '管理员核对身份、住房与养宠经验等材料'],
+    ['家访核实', '救助站上门或电话核实实际居住环境'],
+    ['签订协议', '生成领养协议编号，进入回访跟踪']
+  ];
+  $('#flowBox').innerHTML = flow.map(function (f, i) {
+    return '<div class="flow-item"><em>' + (i + 1) + '</em><h4>' + f[0] + '</h4><p>' + f[1] + '</p></div>';
+  }).join('');
+  $('#ruleBox').textContent = DB.settings().rules;
+</script>
+</body>
+</html>
